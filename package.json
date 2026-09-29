@@ -1,0 +1,25 @@
+{
+  "name": "exploring-with-bombadil",
+  "version": "1.0.0",
+  "description": "Bombadil is a webUI model- and property-based testing tool: https://antithesishq.github.io/bombadil/index.html",
+  "main": "index.js",
+  "scripts": {
+    "test": "bombadil browser test --time-limit=1m --exit-on-violation --output-path=bombadil-output --output-path-overwrite https://qe-at-cgi-fi.github.io/atm/ bombadil/specification.ts",
+    "test:inspect": "bombadil browser inspect bombadil-output"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/QE-at-CGI-FI/exploring-with-bombadil.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/QE-at-CGI-FI/exploring-with-bombadil/issues"
+  },
+  "homepage": "https://github.com/QE-at-CGI-FI/exploring-with-bombadil#readme",
+  "devDependencies": {
+    "@antithesishq/bombadil": "^0.7.7"
+  }
+}
