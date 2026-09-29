@@ -378,10 +378,12 @@ export const cashDecreaseMatchesRequestedAmount = always(() => {
 
 // If some combination of available bills sums exactly to the requested
 // amount, the ATM must find it — it must never decline a request its cash
-// inventory can actually satisfy. Confirmed violated today: with
-// bills = {100:0, 50:2, 20:3, 10:0} and amount=110, 1×€50+3×€20=€110 is
-// feasible but the greedy allocator declines it (see
-// scratchbook/properties/exact-change-completeness.md).
+// inventory can actually satisfy. Was confirmed violated: with
+// bills = {100:0, 50:2, 20:3, 10:0} and amount=110, 1×€50+3×€20=€110 was
+// feasible but the greedy allocator declined it (see
+// scratchbook/properties/exact-change-completeness.md). Fixed upstream by
+// the SUT's exactDispense() bounded-knapsack fallback; kept as a regression
+// guard.
 // Catalog: exact-change-completeness.
 export const exactChangeCompleteness = always(() => {
   const oracleFeasible = exactChangeFeasible.current;
@@ -459,9 +461,11 @@ export const successfulWithdrawalIsPositiveMultipleOfTen = always(() => {
 // An amount input containing a fractional part (e.g. "300.50") must be
 // rejected by input validation, not silently truncated by `parseInt` into a
 // valid-looking integer amount that then gets dispensed or declined as if
-// it had been entered as a whole number. Confirmed violated today:
-// `parseInt("300.5", 10) === 300`, which passes the multiple-of-10 check and
-// proceeds to a real (logged) withdrawal attempt.
+// it had been entered as a whole number. Was confirmed violated: the SUT
+// used to parse with `parseInt("300.5", 10) === 300`, which passed the
+// multiple-of-10 check and proceeded to a real (logged) withdrawal attempt.
+// Fixed upstream: `withdraw()` now uses `Number(input.value)` plus an
+// explicit `Number.isInteger` check; kept as a regression guard.
 // Catalog: fractional-amount-truncated-not-rejected.
 export const fractionalAmountRejectedNotTruncated = always(() => {
   const looksFractional = /[.,]/.test(rawAmountInput.current);

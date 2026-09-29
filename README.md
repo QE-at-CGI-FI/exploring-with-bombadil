@@ -137,31 +137,29 @@ spec adds its own action generators instead:
 
 ### Known findings
 
-With numbers actually going into the fields, several properties fail
-almost immediately — this is a bug tracker check, not a green CI gate.
-Because `npm test` uses `--exit-on-violation`, it stops at whichever
-violation is found first, which depends on random exploration order. Run
-without `--exit-on-violation` (see [Running the test](#running-the-test))
-to see further findings in one run, then `npm run test:inspect` to step
-through them on the timeline. Confirmed findings include:
+As of the SUT's `Fix the bugs identified as property violations` commit,
+all of the findings this spec originally surfaced have been fixed
+upstream, confirmed by a 40-second violation-free run against the live
+site (see git history of this file for the earlier, pre-fix wording if you
+need it):
 
-- `exactChangeCompleteness` — the greedy bill allocator can decline a
-  withdrawal for cash it physically has (e.g. `bills = {100:0, 50:2, 20:3,
-  10:0}`, `amount = 110`: 1×€50+3×€20=€110 is feasible but greedy fails to
-  find it), confirmed against an independent reference oracle.
-- `fractionalAmountRejectedNotTruncated` — `parseInt("300.5", 10) === 300`
-  lets a fractional amount silently through as a valid integer withdrawal.
+- `exactChangeCompleteness` — `dispenseBills()` now falls back to an exact
+  bounded-knapsack search (`exactDispense()`) whenever the greedy allocator
+  fails, so a feasible combination is never wrongly declined.
+- `fractionalAmountRejectedNotTruncated` — `withdraw()` now parses with
+  `Number(input.value)` and rejects non-integers explicitly, instead of
+  `parseInt` silently truncating "300.5" to 300.
+- The imprecise `withdrawnElsewhere` clamp noted in
+  `scratchbook/property-catalog.md`'s `withdrawn-elsewhere-bounded` open
+  question is also fixed: `setElsewhere()` and `applyAdmin()` both now
+  clamp to `dailyLimit - withdrawnToday`, not `dailyLimit` alone, closing
+  the two-step overdraw scenario that clamp used to leave open.
 
-`accountWithdrawalsRespectAccountLimit` no longer fails via the single-field
-route an earlier version of this README described (typing a large value
-straight into "Withdrawn at other ATMs"): `setElsewhere()` in the current
-SUT already clamps that field to `dailyLimit`, per a fix noted in
-`scratchbook/property-catalog.md`'s `withdrawn-elsewhere-bounded` entry. By
-source trace, the property is still reachable via a two-step scenario that
-fix doesn't close — withdraw enough at this ATM first, then set "elsewhere"
-up to the (still-unreduced) daily limit, so `withdrawnToday +
-withdrawnElsewhere` exceeds `dailyLimit` — but this hasn't been directly
-observed in a run yet, unlike the two findings above.
+Since `npm test` uses `--exit-on-violation`, a clean run now means it will
+run for the full time limit rather than stopping early — this is expected,
+not a sign the properties stopped checking anything. If the SUT regresses,
+rerun without `--exit-on-violation` (see [Running the test](#running-the-test))
+and `npm run test:inspect` to see it on the timeline.
 
 Long, `--exit-on-violation`-free runs (40s+) have occasionally hit a
 `Debugger.evaluateOnCallFrame` timeout from the browser driver itself,
