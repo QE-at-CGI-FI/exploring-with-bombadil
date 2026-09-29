@@ -11,7 +11,7 @@
 // it implements, so the two can be cross-checked.
 //
 // Relevant elements (see app source):
-//   #dispBalance        Account balance, "€<n>"
+//   #dispBalance         Account balance, "€<n>"
 //   #dispAccLimit        Account daily limit, "€<n>"
 //   #dispAccWithdrawn    Withdrawn at this ATM today, "€<n>"
 //   #dispAccRemaining    Account remaining today, "€<n>" (rendered via Math.max(0, ...))
@@ -39,6 +39,13 @@ import { lastAction } from "@antithesishq/bombadil/browser/defaults/actions";
 // drive all the exploration for this specification.
 export * from "@antithesishq/bombadil/browser/defaults";
 
+// ============================================================================
+// Helpers
+// ============================================================================
+//
+// Small pure functions used by the extractors below to turn rendered DOM
+// text into numbers. No Bombadil API surface here.
+
 function euros(text: string | null | undefined): number {
   if (!text) return 0;
   const match = text.replace(/ /g, " ").match(/-?\d+/);
@@ -50,6 +57,17 @@ function count(text: string | null | undefined): number {
   const match = text.match(/\d+/);
   return match ? parseInt(match[0], 10) : 0;
 }
+
+// ============================================================================
+// State extractors
+// ============================================================================
+//
+// `extract()` cells are Bombadil's bridge from the live page into typed
+// values. Each one re-reads the DOM every captured state and exposes the
+// result as `.current`. Properties and action generators below never query
+// `state.document` themselves for values covered here — they read these
+// cells instead, so there's a single definition of "what does the balance
+// mean" per concept.
 
 const balance = extract((state) =>
   euros(state.document.querySelector("#dispBalance")?.textContent),
@@ -284,7 +302,16 @@ function computedAtmRemaining(): number {
   return atmLimit.current - atmWithdrawn.current;
 }
 
-// --- Properties -------------------------------------------------------
+// ============================================================================
+// Properties
+// ============================================================================
+//
+// `always(...)` / `eventually(...)` invariants that Antithesis checks against
+// every explored trace. Each reads extractor cells via `.current` (and, for
+// step properties, `next()` to compare pre/post an action) — none of them
+// touch `state.document` directly. Most carry a "Catalog: <slug>" comment
+// cross-referencing the antithesis-research property catalog
+// (scratchbook/property-catalog.md) this file implements.
 
 // The account balance is only ever debited by withdrawals or set directly
 // via the admin panel, but should never be allowed to go negative.
@@ -606,16 +633,35 @@ export const clockRewindCausesReset = eventually(() => {
 // single-run session to say anything meaningful), and low real-world impact
 // given the SUT's intended use as a short-lived teaching demo.
 
-// --- Numeric input actions ---------------------------------------------
+// ============================================================================
+// Action generators
+// ============================================================================
 //
-// Bombadil's default `inputs` action generator types generic filler text
-// into editable elements, without regard for `type="number"` fields — it
-// never actually inserts numbers. Since almost all of this app's business
-// logic (withdrawal limits, exact-change dispensing, daily resets) is only
-// reachable by putting real numbers into these fields, we add custom action
-// generators that set them directly, both to a curated set of values that
-// target the boundaries of the app's rules, and to freeform random digit
-// strings for broader fuzzing.
+// Bombadil's default `inputs` action generator (re-exported from
+// `.../defaults` above) types generic filler text into editable elements,
+// without regard for `type="number"` fields — it never actually inserts
+// numbers. Since almost all of this app's business logic (withdrawal limits,
+// exact-change dispensing, daily resets) is only reachable by putting real
+// numbers into these fields, this section adds what's needed to do that, in
+// two layers:
+//
+//   1. Custom actions (`registerCustomAction`) — the primitive building
+//      blocks. Each one is a single async function that performs one DOM
+//      mutation (set one input's value and dispatch an `input` event) when
+//      Antithesis chooses to run it. On their own they do nothing — they
+//      only exist to be invoked.
+//
+//   2. Input generators (`actions(...)`) — exported cells that turn those
+//      primitives into the actual choices offered to Antithesis's explorer
+//      each step, alongside the default click/scroll/navigation actions.
+//      Each one targets one field (or group of fields) with a curated list
+//      of values chosen to sit on the boundaries of the app's own rules
+//      (zero, one bill, one-under/over a limit, fractional, negative, ...),
+//      plus one broader freeform-fuzzing generator that isn't tied to a
+//      specific field. This is the layer that answers "what numbers get
+//      typed in, and where."
+
+// --- Custom actions -----------------------------------------------------
 
 function setInputValue(document: Document, id: string, value: number | string) {
   const input = document.querySelector<HTMLInputElement>(`#${id}`);
@@ -661,6 +707,8 @@ const setClock = registerCustomAction(
     setInputValue(document, "cfgClock", isoDatetimeLocal);
   },
 );
+
+// --- Input generators -----------------------------------------------------
 
 // Targets the visible withdrawal amount field with values chosen to sit
 // right on the boundaries of the app's own rules: zero, the smallest valid
